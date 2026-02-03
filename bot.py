@@ -8,7 +8,7 @@ from ping3 import ping
 import re
 import asyncio
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # ────────────────────────────────────────────────
 #                 تنظیمات اصلی (امن – از env)
@@ -66,28 +66,26 @@ cursor.execute("""
 """)
 
 cursor.execute("""
-    CREATE TABLE IF NOT EXISTS requests (
-        user_id INTEGER,
-        timestamp TIMESTAMP
+    CREATE TABLE IF NOT EXISTS channels_groups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        chat_id TEXT NOT NULL,
+        type TEXT NOT NULL
     )
 """)
 
-conn.commit()
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 # منابع اولیه استخراج (مخفی از کاربر)
-INITIAL_SOURCES = [
+initial_sources = [
     "https://t.me/s/persianvpnhub",
     "https://www.vpngate.net/en/",
     "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/configs.txt",
     "https://github.com/mahdibland/V2RayAggregator/raw/master/configs",
 ]
-
-for url in INITIAL_SOURCES:
+for url in initial_sources:
     cursor.execute("INSERT OR IGNORE INTO sources (url, type) VALUES (?, ?)", (url, "config"))
 conn.commit()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # ────────────────────────────────────────────────
 #                 استخراج اتوماتیک
@@ -103,23 +101,26 @@ async def extract_configs(context: ContextTypes.DEFAULT_TYPE):
     for url in urls:
         try:
             r = requests.get(url, timeout=15)
+            soup = BeautifulSoup(r.text, "html.parser")
+
             if "t.me/s" in url:
-                soup = BeautifulSoup(r.text, "html.parser")
                 texts = soup.find_all("div", class_="tgme_widget_message_text")
                 for t in texts:
                     links = re.findall(r"(vmess|vless|trojan)://[^\s<>\"]+", str(t))
                     for link in links:
                         new_configs.append(link)
+
             elif "vpngate.net" in url:
-                soup = BeautifulSoup(r.text, "html.parser")
                 rows = soup.select("table#vg_hosts_table tr")[1:max_daily//len(urls)]
                 for row in rows:
                     a = row.find("a", href=re.compile(r"\.ovpn$"))
                     if a:
                         ovpn = requests.get("https://www.vpngate.net" + a["href"], timeout=10).text
                         new_configs.append(ovpn)
+
             elif "raw.githubusercontent.com" in url:
                 new_configs.extend(re.findall(r"(vmess|vless|trojan)://[^\n]+", r.text))
+
         except Exception as e:
             logger.error(f"خطا در منبع {url}: {e}")
 
@@ -136,6 +137,11 @@ async def extract_configs(context: ContextTypes.DEFAULT_TYPE):
 
     conn.commit()
     logger.info(f"{added} کانفیگ اضافه شد")
+
+    if PUBLIC_CHANNEL:
+        cursor.execute("SELECT config FROM configs WHERE quality IN ('High', 'Medium') ORDER BY RANDOM() LIMIT 3")
+        for row in cursor.fetchall():
+            await context.bot.send_message(chat_id=PUBLIC_CHANNEL, text=f"کانفیگ جدید: {row[0]}")
 
 def check_quality(config):
     host = re.search(r"(?:add|remote|host)\s*[= ]\s*([^\s#]+)", config, re.IGNORECASE)
@@ -155,6 +161,11 @@ def apply_remark(config):
     elif "# " in config:
         return re.sub(r"# .*$", f"# {remark}", config, flags=re.MULTILINE)
     return config + f" # {remark}"
+
+def get_setting(key: str) -> str:
+    cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+    row = cursor.fetchone()
+    return row[0] if row else "false"
 
 # ────────────────────────────────────────────────
 #                 منوی اصلی
@@ -190,22 +201,15 @@ async def get_config_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text("دریافت کانفیگ:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 # ────────────────────────────────────────────────
-#                 پنل ادمین (دسته‌بندی شده)
+#                 اجرا
 # ────────────────────────────────────────────────
 
-async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.from_user.id != ADMIN_ID:
-        await update.message.reply_text("دسترسی ندارید.")
-        return
+def main():
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(get_config_menu, pattern="get_config"))
+    app.job_queue.run_repeating(extract_configs, interval=CHECK_INTERVAL_MINUTES * 60, first=10)
+    app.run_polling()
 
-    keyboard = [
-        [InlineKeyboardButton("تنظیمات عمومی", callback_data="admin_general")],
-        [InlineKeyboardButton("ویژگی‌ها", callback_data="admin_features")],
-        [InlineKeyboardButton("محتوا و منابع", callback_data="admin_content")],
-        [InlineKeyboardButton("آمار و لاگ", callback_data="admin_stats")],
-        [InlineKeyboardButton("کاربران و ادمین‌ها", callback_data="admin_users")],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("پنل مدیریت:", reply_markup=reply_markup)
-
-# ادامه پنل ادمین در کد کامل‌تر
+if __name__ == '__main__':
+    main()
