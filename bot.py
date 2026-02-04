@@ -187,10 +187,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text == "دریافت کانفیگ":
         keyboard = ReplyKeyboardMarkup([
             [KeyboardButton("کانفیگ اختصاصی"), KeyboardButton("لوکیشن دلخواه")],
-            [KeyboardButton("گروهی (حداکثر ۵)"), KeyboardButton("اهدای کانفیگ")],
+            [KeyboardButton("گروهی (حداکثر ۱۰)"), KeyboardButton("اهدای کانفیگ")],
             [KeyboardButton("بازگشت به منوی اصلی")],
         ], resize_keyboard=True, one_time_keyboard=False)
-        await update.message.reply_text("گزینه دریافت کانفیگ (حداکثر ۵ در هر درخواست):", reply_markup=keyboard)
+        await update.message.reply_text("گزینه دریافت کانفیگ (حداکثر ۱۰ در هر درخواست):", reply_markup=keyboard)
 
     elif text == "کانفیگ اختصاصی":
         cursor.execute("SELECT config FROM configs WHERE quality = 'High' ORDER BY RANDOM() LIMIT 1")
