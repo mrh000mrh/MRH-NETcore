@@ -1,17 +1,17 @@
 # MRH-NETcore Config Bot
 
-ربات اهدای کانفیگ VPN با پردازش خودکار
+ربات پردازش و انتشار کانفیگ VPN از فایل HTML تلگرام
 
-## ویژگی‌ها
-- دریافت HTML اکسپورت از کانال‌های تلگرام
-- استخراج خودکار کانفیگ‌ها
-- تست لوکیشن و پینگ
-- ارسال به کانال با فرمت استاندارد
+## ویژگی‌های اصلی
+- پارس HTML اکسپورت تلگرام
+- استخراج VLESS/VMess/Trojan/SS/MTProto
+- لوکیشن هیبرید (ipinfo + متن)
+- چک تکراری با MongoDB
+- ارسال batch + تأیید ادمین (اختیاری)
+- دکمه QR Code زیر هر کانفیگ
+- آمار روزانه ۲۳:۵۹
+- اهدای کانفیگ توسط کاربران
 
-## راه‌اندازی
-1. تنظیمات Environment Variables
-2. اتصال به Northflank
-3. Enjoy!
-
-## کانال
-@mrhnetcore
+## Deploy
+- Render → Background Worker (Docker)
+- Secret File: secrets.env با BOT_TOKEN, ADMIN_ID, MONGODB_URI, ...
